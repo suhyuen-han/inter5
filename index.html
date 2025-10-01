@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>운명의 짝궁 찾기</title>
+
+  <!-- 귀여운 폰트 (Jua) 불러오기 -->
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #000;
+      color: #fff;
+      font-family: 'Jua', sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 60px;
+      margin-bottom: 100px;
+    }
+    .display {
+      font-size: 28px; 
+      padding: 15px 30px;
+      border: 2px solid #fff;
+      border-radius: 12px;
+      margin: 40px auto;
+      min-width: 200px;
+      text-align: center;
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 20px;
+      border: none;
+      border-radius: 8px;
+      background: #fff;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn:hover { background: #f4c2c2; }
+    /* 두 번째 게임 화면 */
+    #gameScreen { display: none; }
+    #timer { font-size: 24px; margin: 10px 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 20px;
+      max-width: 650px;
+      margin: 30px auto;
+    }
+    button.nameBtn {
+      padding: 10px;
+      font-size: 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #fff;
+      color: #000;
+      font-weight: bold;
+      transition: .2s;
+    }
+    button.nameBtn:hover { background: #f4c2c2; }
+    #result { margin-top: 20px; font-size: 28px; }
+  </style>
+</head>
+<body>
+  <h1>💘 운명의 짝궁 찾기 💘</h1>
+
+  
+  <div id="lotteryScreen">
+    <img src="1.jpg" alt="운명의 짝궁 캐릭터" style="max-width:280px;border-radius:8px;">
+    <div class="display" id="display">?</div>
+    <button class="btn" onclick="playBGM(); startGame()">찾기</button>
+    <button id="goBtn" class="btn" style="display:none" onclick="showGame()">다음 단계(이름을 기억하세요!) ▶</button>
+  </div>
+
+  
+  <div id="gameScreen">
+    <h2>나의 짝궁의 이름을 찾아라! 💘</h2>
+    <div id="timer">남은 시간: 10초</div>
+    <div class="grid" id="grid"></div>
+    <div id="result"></div>
+  </div>
+
+  
+  <audio id="bgm" src="bgm.mp3" loop></audio>
+
+  <script>
+    const names = [
+      "병학","서연","수현","민준","서준","다은","가은","지민",
+      "도윤","하늘","하린","지후","유진","지호","시윤","나현",
+      "서율","지안","수민","준호","다인","예린","도영","우진",
+      "서진","유나","도현","하린","지후","서현"
+    ];
+
+    let timer, winnerName=null;
+    let audioCtx;
+
+    
+    function playBGM() {
+      const bgm = document.getElementById("bgm");
+      bgm.volume = 0.3;
+      bgm.play();
+    }
+
+    
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
+
+    
+    function tick() {
+      ensureAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 900 + Math.random() * 50;
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.07);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.08);
+    }
+
+    
+    function fanfare() {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const notes = [523, 659, 784, 988, 784];
+      notes.forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = "triangle";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.001, now + i*0.12);
+        g.gain.linearRampToValueAtTime(0.18, now + i*0.12 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i*0.12 + 0.28);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(now + i*0.12);
+        o.stop(now + i*0.12 + 0.32);
+      });
+    }
+
+    
+    function burstConfetti() {
+      const colors = ["#ff4d4d","#ffcc00","#66ff66","#66ccff","#ff99ff","#ffffff"];
+      const count = 50;
+      for (let i = 0; i < count; i++) {
+        const confetti = document.createElement("div");
+        confetti.style.position = "fixed";
+        confetti.style.top = "-10px";
+        confetti.style.left = Math.random() * 100 + "vw";
+        confetti.style.width = "8px";
+        confetti.style.height = "14px";
+        confetti.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+        confetti.style.opacity = "0.9";
+        confetti.style.transform = `rotate(${Math.random()*360}deg)`;
+        confetti.style.pointerEvents = "none";
+        const duration = 1.5 + Math.random() * 1; 
+        confetti.style.transition = `transform ${duration}s linear, top ${duration}s linear, opacity ${duration}s`;
+        document.body.appendChild(confetti);
+        setTimeout(() => {
+          confetti.style.top = "110vh";
+          confetti.style.transform += ` translateY(${Math.random()*20}vh) rotate(${Math.random()*720}deg)`;
+          confetti.style.opacity = "0";
+        }, 50);
+        setTimeout(() => confetti.remove(), duration * 1000 + 500);
+      }
+    }
+
+    
+    function startGame() {
+      winnerName = null;
+      document.getElementById("goBtn").style.display = "none";
+
+      clearInterval(timer);
+      let i = 0;
+      timer = setInterval(() => {
+        document.getElementById("display").textContent = names[i];
+        tick();
+        i = (i+1)%names.length;
+      }, 100);
+
+      setTimeout(() => {
+        clearInterval(timer);
+        winnerName = names[Math.floor(Math.random()*names.length)];
+        document.getElementById("display").textContent = `🎉 ${winnerName} ❤️`;
+        fanfare();
+        burstConfetti();
+        document.getElementById("goBtn").style.display = "inline-block";
+      }, 5000);
+    }
+
+    
+    function showGame() {
+      document.getElementById("lotteryScreen").style.display = "none";
+      document.getElementById("gameScreen").style.display = "block";
+
+      const allNames = [...names];
+      if (!allNames.includes(winnerName)) allNames.push(winnerName);
+      const gameNames = allNames.sort(() => Math.random()-0.5);
+
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      gameNames.forEach(n => {
+        const btn = document.createElement("button");
+        btn.textContent = n;
+        btn.className = "nameBtn";
+        btn.onclick = () => checkAnswer(n);
+        grid.appendChild(btn);
+      });
+
+      
+      let timeLeft = 10;
+      const timerEl = document.getElementById("timer");
+      const countdown = setInterval(() => {
+        timeLeft--;
+        timerEl.textContent = `남은 시간: ${timeLeft}초`;
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          endGame(false);
+        }
+      }, 1000);
+
+      function checkAnswer(n) {
+        if (n === winnerName) endGame(true);
+        else endGame(false);
+      }
+
+      function endGame(success) {
+        clearInterval(countdown);
+        grid.querySelectorAll("button").forEach(b => b.disabled = true);
+        if (success) {
+          document.getElementById("result").innerHTML = 
+            `<h2>🎉 정답! 당신의 짝궁은 <span style="color:#ffcc00">${winnerName}</span> 💖</h2>`;
+        } else {
+          document.getElementById("result").innerHTML = 
+            `<h2>❌ 실패! 짝궁을 찾지 못했어요 😢</h2>`;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
